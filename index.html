@@ -55,8 +55,13 @@
             border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
+            margin-bottom: 10px;
         }
         button:active { background-color: #218838; }
+        .btn-sensor {
+            background-color: #007bff;
+        }
+        .btn-sensor:active { background-color: #0056b3; }
         .result {
             margin-top: 25px;
             font-size: 22px;
@@ -82,6 +87,8 @@
         <input type="number" id="alturaOjos" value="1.60" step="0.01">
     </div>
 
+    <button class="btn-sensor" id="btnPermiso" onclick="solicitarPermiso()">Activar Sensores del Teléfono</button>
+
     <div class="live-angle">
         Ángulo Actual: <span id="lblAngulo">0°</span>
     </div>
@@ -96,58 +103,57 @@
 <script>
     let anguloInclinacion = 0;
 
-    // Registrar el Service Worker para permitir el funcionamiento Offline
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')
-            .then(() => console.log("Service Worker Registrado Exitosamente."))
-            .catch(err => console.log("Error al registrar Service Worker:", err));
+            .then(() => console.log("Service Worker Registrado."))
+            .catch(err => console.log("Error de SW:", err));
     }
 
-    // Capturar los sensores del teléfono (Inclinación / Pitch)
     function manejarOrientacion(event) {
-        // En móviles, 'beta' representa el balanceo adelante/atrás si el dispositivo está en vertical
         let beta = event.beta; 
-        
         if (beta !== null) {
-            // Normalizamos el ángulo dependiendo de cómo sostienes el teléfono (90° horizontal)
+            // Convierte el cabeceo en un ángulo de inclinación vertical útil (0° plano, sube al inclinar)
             anguloInclinacion = Math.abs(beta - 90); 
             document.getElementById('lblAngulo').innerText = Math.round(anguloInclinacion) + "°";
         }
     }
 
-    // Solicitar permisos del sensor de movimiento (Requerido en iOS modernos)
-    if (window.DeviceOrientationEvent) {
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            document.body.addEventListener('click', () => {
-                DeviceOrientationEvent.requestPermission()
-                    .then(response => {
-                        if (response == 'granted') {
-                            window.addEventListener('deviceorientation', manejarOrientacion);
-                        }
-                    });
-            }, { once: true });
+    // Nueva función robusta para forzar permisos en Android y iOS
+    function solicitarPermiso() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // Caso especial: iOS
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        window.addEventListener('deviceorientation', manejarOrientacion, true);
+                        document.getElementById('btnPermiso').style.display = 'none';
+                    } else {
+                        alert("Permiso denegado para los sensores.");
+                    }
+                })
+                .catch(console.error);
         } else {
-            window.addEventListener('deviceorientation', manejarOrientacion);
+            // Caso general: Android modernos (Chrome / Samsung Internet)
+            window.removeEventListener('deviceorientation', manejarOrientacion);
+            window.addEventListener('deviceorientation', manejarOrientacion, true);
+            
+            // Verificación manual rápida en pantalla
+            document.getElementById('btnPermiso').innerText = "¡Sensores Conectados!";
+            document.getElementById('btnPermiso').style.backgroundColor = "#6c757d";
         }
-    } else {
-        document.getElementById('lblAngulo').innerText = "Sensor no soportado";
     }
 
-    // Aplicar fórmula trigonométrica
     function calcularAltura() {
         const D = parseFloat(document.getElementById('distancia').value);
         const h = parseFloat(document.getElementById('alturaOjos').value);
         
-        // Convertir ángulo a Radianes
         const anguloRadianes = anguloInclinacion * (Math.PI / 180);
-        
-        // H = D * tan(θ) + h
         const H = (D * Math.tan(anguloRadianes)) + h;
 
         if (!isNaN(H)) {
             document.getElementById('resultado').innerText = "Altura Estimada: " + H.toFixed(2) + " m";
         } else {
-            document.getElementById('resultado').innerText = "Por favor, revisa los datos.";
+            document.getElementById('resultado').innerText = "Revisa los datos introducidos.";
         }
     }
 </script>
