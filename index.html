@@ -75,7 +75,7 @@
 <body>
 
 <div class="container">
-    <h1>Medidor de Alturas 🌲</h1>
+    <h1>Medidor de Alturas v2 🌲</h1>
     
     <div class="input-group">
         <label for="distancia">Distancia al Objeto (metros):</label>
@@ -87,7 +87,7 @@
         <input type="number" id="alturaOjos" value="1.60" step="0.01">
     </div>
 
-    <button class="btn-sensor" id="btnPermiso" onclick="solicitarPermiso()">Activar Sensores del Teléfono</button>
+    <button class="btn-sensor" id="btnPermiso" onclick="solicitarPermiso()">Conectar Giroscopio</button>
 
     <div class="live-angle">
         Ángulo Actual: <span id="lblAngulo">0°</span>
@@ -103,41 +103,38 @@
 <script>
     let anguloInclinacion = 0;
 
+    // Forzar actualización eliminando cachés antiguas de versiones previas
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-            .then(() => console.log("Service Worker Registrado."))
-            .catch(err => console.log("Error de SW:", err));
+        navigator.serviceWorker.register('sw.js?v=2').then(reg => {
+            reg.update();
+            console.log("Service Worker Actualizado.");
+        });
     }
 
     function manejarOrientacion(event) {
         let beta = event.beta; 
         if (beta !== null) {
-            // Convierte el cabeceo en un ángulo de inclinación vertical útil (0° plano, sube al inclinar)
+            // Conversión matemática exacta para medir inclinaciones en vertical
             anguloInclinacion = Math.abs(beta - 90); 
             document.getElementById('lblAngulo').innerText = Math.round(anguloInclinacion) + "°";
         }
     }
 
-    // Nueva función robusta para forzar permisos en Android y iOS
     function solicitarPermiso() {
+        // Validación obligatoria para compatibilidad con sistemas modernos
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            // Caso especial: iOS
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
                     if (response === 'granted') {
                         window.addEventListener('deviceorientation', manejarOrientacion, true);
-                        document.getElementById('btnPermiso').style.display = 'none';
-                    } else {
-                        alert("Permiso denegado para los sensores.");
+                        /document.getElementById('btnPermiso').innerText = "¡Sensores Listos!";
                     }
-                })
-                .catch(console.error);
+                }).catch(console.error);
         } else {
-            // Caso general: Android modernos (Chrome / Samsung Internet)
-            window.removeEventListener('deviceorientation', manejarOrientacion);
+            // Solución definitiva para Android: Escuchar orientaciones absolutas y normales alternativamente
             window.addEventListener('deviceorientation', manejarOrientacion, true);
+            window.addEventListener('deviceorientationabsolute', manejarOrientacion, true);
             
-            // Verificación manual rápida en pantalla
             document.getElementById('btnPermiso').innerText = "¡Sensores Conectados!";
             document.getElementById('btnPermiso').style.backgroundColor = "#6c757d";
         }
